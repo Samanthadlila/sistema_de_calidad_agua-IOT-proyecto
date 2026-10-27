@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo de Agua - Vaso 5"</title>
+
+
+
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #faf0f2;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            color: #4a3b3e;
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #f2dadf;
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 15px rgba(210, 160, 170, 0.08);
+        }
+        .gauge-bg {
+            stroke: #fce4e8;
+        }
+        .gauge-value {
+            stroke: #e87991;
+            stroke-dasharray: 251.2;
+            stroke-dashoffset: 251.2;
+            transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease;
+        }
+        .water-animation {
+            transition: height 0.8s ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-[#f2dadf] shadow-sm gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-[#6b4c52]">Monitoreo de Calidad de Agua</h1>
+                <p class="text-sm text-[#a07880]">IoT</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="status-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                    Conectando...
+                </span>
+                <span class="text-xs text-[#a07880] bg-[#fcf0f2] px-3 py-1 rounded-full border border-[#f2dadf]">
+                    ESP32_AGUA_01
+                </span>
+            </div>
+        </header>
+
+
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <div class="card p-6 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Nivel del Vaso</span>
+                        <span id="nivel-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            Normal
+                        </span>
+                    </div>
+
+                    <div class="relative w-28 h-36 mx-auto my-2 border-4 border-t-0 border-[#dca8b2] rounded-b-2xl bg-[#fffafb] overflow-hidden flex items-end p-1">
+                        <div id="vaso-agua" class="w-full bg-gradient-to-t from-[#6bb8e6] to-[#a3d8f4] rounded-b-xl water-animation" style="height: 0%;"></div>
+                        <div class="absolute inset-0 flex items-center justify-center font-bold text-lg text-[#3a5868] drop-shadow-sm">
+                            <span id="txt-porcentaje">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-[#f7e6e9] text-center">
+                    <p class="text-xs text-[#a07880]">Distancia al sensor</p>
+                    <p class="text-xl font-bold text-[#5c4046]"><span id="txt-distancia">0.0</span> cm</p>
+                </div>
+            </div>
+
+
+
+            <div class="card p-6 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Temperatura</span>
+                        <span id="temp-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+                            Leyendo...
+                        </span>
+                    </div>
+
+                    <div class="relative w-40 h-40 mx-auto flex items-center justify-center">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle class="gauge-bg" cx="50" cy="50" r="40" stroke-width="8" fill="transparent"></circle>
+                            <circle id="temp-gauge" class="gauge-value" cx="50" cy="50" r="40" stroke-width="8" fill="transparent"></circle>
+                        </svg>
+                        <div class="absolute flex flex-col items-center justify-center text-center">
+                            <span id="txt-temperatura" class="text-3xl font-bold text-[#5c4046]">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-2 pt-4 border-t border-[#f7e6e9] text-center">
+                    <p id="txt-temp-estado" class="text-xs font-semibold text-emerald-600">Correcto</p>
+                </div>
+            </div>
+
+
+
+            <div class="card p-6 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Turbidez</span>
+                        <span id="turbidez-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            Limpia
+                        </span>
+                    </div>
+
+                    <div class="my-6 text-center">
+
+
+
+                        <p id="txt-turbidez-pct" class="text-4xl font-bold text-[#5c4046]">0%</p>
+
+
+                        <p id="txt-turbidez-val" class="text-xs text-[#a07880] mt-1">0.0 (val)</p>
+                        <p id="txt-turbidez-desc" class="text-sm mt-2 text-[#8c656d]">Agua cristalina / limpia</p>
+                    </div>
+                </div>
+
+
+
+                <div>
+                    <div class="w-full bg-[#fce4e8] h-3 rounded-full overflow-hidden mb-2">
+                        <div id="barra-turbidez" class="h-full bg-[#e87991] transition-all duration-500" style="width: 0%;"></div>
+                    </div>
+                    <div class="pt-2 border-t border-[#f7e6e9] text-center">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const ALTO_VASO_CM = 14.0; //altura, hay que modificarla si necesitamos
+        function conectarWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.hostname}:8000/ws`;
+            
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                const badge = document.getElementById('status-badge');
+                badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Conectado`;
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const json = JSON.parse(event.data);
+                    const data = json.data ? json.data : json;
+                    actualizarUI(data);
+                } catch (e) {
+                    console.error("Error parseando JSON:", e);
+                }
+            };
+
+            ws.onclose = () => {
+                const badge = document.getElementById('status-badge');
+                badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Desconectado`;
+                
+                setTimeout(conectarWebSocket, 3000);
+            };
+
+            ws.onerror = (err) => {
+                console.error("Error en WebSocket:", err);
+                ws.close();
+            };
+        }
+
+        function actualizarUI(data) {
+
+
+            if (data.distancia_cm !== undefined) {
+                const dist = parseFloat(data.distancia_cm);
+                document.getElementById('txt-distancia').innerText = dist.toFixed(1);
+
+                let pct = 0;
+                if (dist < ALTO_VASO_CM) {
+                    pct = ((ALTO_VASO_CM - dist) / ALTO_VASO_CM) * 100;
+                }
+                pct = Math.max(0, Math.min(100, Math.round(pct)));
+
+                document.getElementById('txt-porcentaje').innerText = pct + "%";
+                document.getElementById('vaso-agua').style.height = pct + "%";
+
+                const badgeNivel = document.getElementById('nivel-badge');
+                if (pct < 25) {
+                    badgeNivel.innerText = "Muy Bajo";
+                    badgeNivel.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200";
+                } else if (pct > 85) {
+                    badgeNivel.innerText = "Lleno";
+                    badgeNivel.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+                } else {
+                    badgeNivel.innerText = "Normal";
+                    badgeNivel.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+                }
+            }
+
+
+
+            if (data.temperatura !== undefined) {
+                const temp = parseFloat(data.temperatura);
+                const txtTemp = document.getElementById('txt-temperatura');
+                const badgeTemp = document.getElementById('temp-badge');
+                const estadoTemp = document.getElementById('txt-temp-estado');
+                const gauge = document.getElementById('temp-gauge');
+
+                if (temp === -127 || isNaN(temp)) {
+                    txtTemp.innerText = "ERR";
+                    badgeTemp.innerText = "Error Cable";
+                    badgeTemp.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-300";
+                    estadoTemp.innerText = "Falta resistencia / Desconectado";
+                    estadoTemp.className = "text-xs font-semibold text-rose-600";
+                    gauge.style.strokeDashoffset = 251.2;
+                } else {
+                    txtTemp.innerText = temp.toFixed(1) + "°C";
+                    estadoTemp.innerText = "Correcto (DS18B20)";
+                    estadoTemp.className = "text-xs font-semibold text-emerald-600";
+
+                    const min = 10, max = 50;
+                    const pctTemp = Math.max(0, Math.min(1, (temp - min) / (max - min)));
+                    const offset = 251.2 - (251.2 * pctTemp);
+                    gauge.style.strokeDashoffset = offset;
+
+                    if (temp < 18) {
+                        badgeTemp.innerText = "Agua Fría";
+                        badgeTemp.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200";
+                    } else if (temp <= 30) {
+                        badgeTemp.innerText = "Templada";
+                        badgeTemp.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+                    } else {
+                        badgeTemp.innerText = "Caliente";
+                        badgeTemp.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200";
+                    }
+                }
+            }
+
+            // 3. TURBIDEZ (Porcentaje grande + valor crudo en chiquito)
+            if (data.turbidez !== undefined) {
+                const rawTurb = parseFloat(data.turbidez);
+                
+                let turbPct = 0;
+                if (rawTurb <= 10) {
+                    turbPct = 100; // Muy sucio / bloqueado
+                } else {
+                    turbPct = Math.max(0, Math.min(100, ((53.8 - rawTurb) / 53.8) * 100));
+                }
+                
+                const turb = Math.round(turbPct);
+                
+
+                document.getElementById('txt-turbidez-pct').innerText = turb + "%";
+                document.getElementById('txt-turbidez-val').innerText = rawTurb.toFixed(1) + " (val)";
+                document.getElementById('barra-turbidez').style.width = turb + "%";
+
+                const badgeTurb = document.getElementById('turbidez-badge');
+                const descTurb = document.getElementById('txt-turbidez-desc');
+
+                if (rawTurb >= 45) {
+                    badgeTurb.innerText = "Limpia";
+                    badgeTurb.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+                    descTurb.innerText = "Agua cristalina y transparente";
+                } else if (rawTurb >= 20) {
+                    badgeTurb.innerText = "Moderada";
+                    badgeTurb.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+                    descTurb.innerText = "Ligeramente turbia";
+                } else {
+                    badgeTurb.innerText = "Muy Sucia";
+                    badgeTurb.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200";
+                    descTurb.innerText = "Agua opaca / con objetos";
+                }
+            }
+        }
+
+        window.onload = conectarWebSocket;
+    </script>
+</body>
+</html>
