@@ -7,11 +7,11 @@
 #include <sys/time.h>     
 
 // WIFI
-const char* ssid = "IZZI-6980";
-const char* password = "MMZMV2MAJMFG";
+const char* ssid = "Compu8";
+const char* password = "123456789";
 
 // IP del ESP32 MQTT
-const char* mqtt_server = "192.168.0.234"; 
+const char* mqtt_server = "192.168.137.233"; 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -26,7 +26,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 unsigned long previousMillis = 0;
-const long interval = 1000;
+const long interval = 500;
 
 uint32_t sequenceId = 0;  
 
