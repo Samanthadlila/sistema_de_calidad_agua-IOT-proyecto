@@ -1,128 +1,142 @@
-import json
-import asyncio
-import sqlite3
+import asyncio, json, time
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Optional
+
+import paho.mqtt.client as mqtt
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import paho.mqtt.client as mqtt
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-app = FastAPI(title="IoT Middleware - Práctica 3 con Persistencia")
+MQTT_HOST = "localhost"                      # Mosquitto instalado en tu computadora
+T_CONTROL = "dispositivos/esp32/control"     # tópico para mandar órdenes a la ESP32
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ---------- Base de datos: SQLite se guarda en el archivo iot.db (se crea solo) ----------
+engine = create_async_engine("sqlite+aiosqlite:///iot.db")
+Session = async_sessionmaker(engine, expire_on_commit=False)
 
-MQTT_BROKER = "localhost"
-MQTT_TOPIC = "tanque/1/lecturas"
+class Base(DeclarativeBase):
+    pass
 
-DB_NAME = "iot_sensores.db"
+class LecturaIoT(Base):
+    __tablename__ = "lecturas_iot"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    node_id: Mapped[str]
+    valor: Mapped[Optional[float]]            # distancia_cm (la señal principal)
+    nivel_pct: Mapped[Optional[float]]
+    temperatura: Mapped[Optional[float]]
+    turbidez: Mapped[Optional[float]]
+    heap_free: Mapped[Optional[int]]
+    sequence_id: Mapped[Optional[int]]
+    latencia: Mapped[Optional[float]]         # ms
+    fecha_registro: Mapped[datetime] = mapped_column(default=datetime.now)
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS telemetria (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            node_id TEXT,
-            distancia_cm REAL,
-            nivel_pct REAL,
-            temperatura REAL,
-            turbidez REAL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# ---------- Estado en memoria ----------
+clientes: set[WebSocket] = set()
+loop = None
+offset = None        # solo se usa si timestamp_ms viene de millis() y no de hora real
+ultimo_seq = None
 
-init_db()
+async def procesar(d: dict):
+    global offset, ultimo_seq
+    data = d["data"]
+    seq = d.get("sequence_id")
+    ts = d.get("timestamp_ms")
+    ahora = time.time() * 1000
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
+    lat = None
+    if ts is not None:
+        if seq is not None and ultimo_seq is not None and seq < ultimo_seq:
+            offset = None                    # la ESP32 se reinició
+        if ts > 1e12:                        # hora real (NTP): latencia exacta
+            lat = max(0, ahora - ts)
+        else:                                # millis(): latencia relativa al mejor caso
+            diff = ahora - ts
+            offset = diff if offset is None else min(offset, diff)
+            lat = max(0, diff - offset)
+    if seq is not None:
+        ultimo_seq = seq
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+    async with Session() as s:
+        s.add(LecturaIoT(
+            node_id=d.get("node_id", "?"),
+            valor=data.get("distancia_cm"),
+            nivel_pct=data.get("nivel_pct"),
+            temperatura=data.get("temperatura"),
+            turbidez=data.get("turbidez"),
+            heap_free=d.get("heap_free"),
+            sequence_id=seq,
+            latencia=None if lat is None else round(lat, 1),
+        ))
+        await s.commit()
 
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+    msg = {
+        "node_id": d.get("node_id"),
+        "data": data,
+        "sequence_id": seq,
+        "latencia_ms": None if lat is None else round(lat, 1),
+        "heap_free": d.get("heap_free"),
+    }
+    for ws in list(clientes):
+        try:
+            await ws.send_json(msg)
+        except Exception:
+            clientes.discard(ws)
 
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except:
-                pass
+# ---------- MQTT en un hilo aparte (no bloquea FastAPI) ----------
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
-manager = ConnectionManager()
-loop = asyncio.get_event_loop()
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    client.subscribe("#")                    # escucha todo y filtra abajo
 
 def on_message(client, userdata, msg):
-    payload = msg.payload.decode('utf-8')
-    print(f"[MQTT Recibido]: {payload}")
-    
     try:
-        data_json = json.loads(payload)
-        node_id = data_json.get("node_id", "ESP32_AGUA_01")
-        data = data_json.get("data", {})
-        
-        distancia_cm = data.get("distancia_cm", 0.0)
-        nivel_pct = data.get("nivel_pct", 0.0)
-        temperatura = data.get("temperatura", 0.0)
-        turbidez = data.get("turbidez", 0.0)
-
-        # guardado en SQLite
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO telemetria (node_id, distancia_cm, nivel_pct, temperatura, turbidez)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (node_id, distancia_cm, nivel_pct, temperatura, turbidez))
-        conn.commit()
-        conn.close()
+        d = json.loads(msg.payload)
+        if isinstance(d, dict) and isinstance(d.get("data"), dict):   # solo telemetría
+            print("[MQTT Recibido]:", d)
+            asyncio.run_coroutine_threadsafe(procesar(d), loop)
     except Exception as e:
-        print(f"No se pudo guardan en la base de datos: {e}")
+        print("Mensaje ignorado:", e)
 
-    asyncio.run_coroutine_threadsafe(manager.broadcast(payload), loop)
-
-mqtt_client = mqtt.Client()
-mqtt_client.on_message = on_message
-
-@app.on_event("startup")
-def startup_event():
-    try:
-        mqtt_client.connect(MQTT_BROKER, 1883, 60)
-        mqtt_client.subscribe(MQTT_TOPIC)
-        mqtt_client.loop_start()
-    except Exception as e:
-        print(f"⚠️ Error MQTT: {e}")
-
-@app.on_event("shutdown")
-def shutdown_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global loop
+    loop = asyncio.get_running_loop()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
+    mqtt_client.connect_async(MQTT_HOST, 1883)
+    mqtt_client.loop_start()
+    yield
     mqtt_client.loop_stop()
-    mqtt_client.disconnect()
 
-# ruta de la telemetria
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# ---------- Historial para la tabla del dashboard ----------
 @app.get("/api/historial")
-def get_historial():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM telemetria ORDER BY id DESC LIMIT 15")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+async def historial(limite: int = 15):
+    async with Session() as s:
+        res = await s.execute(select(LecturaIoT).order_by(LecturaIoT.id.desc()).limit(limite))
+        return [{
+            "id": r.id, "node_id": r.node_id, "distancia_cm": r.valor,
+            "temperatura": r.temperatura, "turbidez": r.turbidez,
+            "sequence_id": r.sequence_id, "latencia": r.latencia,
+            "timestamp": r.fecha_registro.strftime("%Y-%m-%d %H:%M:%S"),
+        } for r in res.scalars()]
 
+# ---------- WebSocket: telemetría hacia la web y órdenes hacia la ESP32 ----------
 @app.websocket("/ws")
 @app.websocket("/ws/telemetria")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def ws_telemetria(ws: WebSocket):
+    await ws.accept()
+    clientes.add(ws)
     try:
         while True:
-            await websocket.receive_text()
+            orden = await ws.receive_json()                       
+            mqtt_client.publish(T_CONTROL, json.dumps(orden))
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        clientes.discard(ws)

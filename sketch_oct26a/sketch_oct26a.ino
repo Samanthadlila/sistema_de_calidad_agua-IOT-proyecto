@@ -3,6 +3,8 @@
 #include <ArduinoJson.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <time.h>         
+#include <sys/time.h>     
 
 // WIFI
 const char* ssid = "IZZI-6980";
@@ -17,14 +19,23 @@ PubSubClient client(espClient);
 // Pines
 #define TRIG 18
 #define ECHO 5
-#define ONE_WIRE_BUS 4 // Pin digital donde va el cable amarillo del DS18B20
+#define ONE_WIRE_BUS 4 
 #define PIN_TURBIDEZ 34
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 unsigned long previousMillis = 0;
-const long interval = 500;
+const long interval = 1000;
+
+uint32_t sequenceId = 0;  
+
+// NUEVO: hora real en milisegundos
+uint64_t ahoraMs() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (uint64_t)tv.tv_sec * 1000ULL + tv.tv_usec / 1000;
+}
 
 void setup_wifi() {
   delay(10);
@@ -65,6 +76,12 @@ void setup() {
   sensors.begin();
 
   setup_wifi();
+
+  // NUEVO: sincronizar la hora con internet (para medir la latencia)
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  while (time(nullptr) < 1700000000) delay(200);
+  Serial.println("Hora sincronizada.");
+
   client.setServer(mqtt_server, 1883);
 }
 
@@ -98,8 +115,11 @@ void loop() {
     float valor_turbidez = (raw_turbidez / 4095.0) * 100.0;
 
     // JSON
+    sequenceId++;   // NUEVO
     StaticJsonDocument<384> doc;
     doc["node_id"] = "ESP32_AGUA_01";
+    doc["sequence_id"] = sequenceId;              // NUEVO
+    doc["timestamp_ms"] = (uint64_t)ahoraMs();    // NUEVO
     
     JsonObject data = doc.createNestedObject("data");
     data["distancia_cm"] = round(distancia_cm * 100.0) / 100.0;

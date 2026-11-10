@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoreo de Agua - Vaso 5" con Persistencia</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <style>
         body {
             background-color: #faf0f2;
@@ -29,8 +30,8 @@
 </head>
 <body class="p-4 md:p-8 min-h-screen">
 
-    <div class="max-w-4xl mx-auto space-y-6">
-        
+    <div class="max-w-5xl mx-auto space-y-6">
+
         <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-[#f2dadf] shadow-sm gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-[#6b4c52]">Monitoreo y Persistencia de Agua</h1>
@@ -112,7 +113,38 @@
             </div>
         </div>
 
-        <!-- NUEVA SECCIÓN: Tabla de Persistencia Visual (Historial) -->
+        <!-- Métricas de red y rendimiento -->
+        <div class="card p-6">
+            <div class="flex justify-between items-center mb-4 gap-3 flex-wrap">
+                <h2 class="text-lg font-bold text-[#6b4c52]">Métricas de red y rendimiento</h2>
+                <button onclick="reiniciarMetricas()" class="text-xs font-semibold px-3 py-1.5 rounded-full border border-[#e87991] text-[#b8506a] hover:bg-[#fce4e8]">Reiniciar métricas</button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Latencia actual</p><p id="m-lat" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Latencia promedio</p><p id="m-lat-avg" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Latencia máxima</p><p id="m-lat-max" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Paquetes perdidos</p><p id="m-loss" class="text-2xl font-bold text-[#b8506a]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Mensajes recibidos</p><p id="m-rx" class="text-2xl font-bold text-[#5c4046]">0</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Último sequence_id</p><p id="m-seq" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Frecuencia real de llegada</p><p id="m-freq" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+                <div class="bg-[#fff6f8] border border-[#f2dadf] rounded-xl p-4"><p class="text-xs text-[#a07880]">Memoria libre (heap)</p><p id="m-heap" class="text-2xl font-bold text-[#5c4046]">-</p></div>
+            </div>
+            <p class="text-xs text-[#a07880] mt-3">Pérdida = (1 - recibidos / (secuencia máx - secuencia mín + 1)) x 100. Reinicia las métricas antes de cada prueba (100, 500 y 1000 ms).</p>
+        </div>
+
+        <!-- Gráficas -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="card p-6">
+                <h2 class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider mb-3">Distancia (cm)</h2>
+                <div class="relative h-48"><canvas id="grafica-dist"></canvas></div>
+            </div>
+            <div class="card p-6">
+                <h2 class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider mb-3">Latencia (ms)</h2>
+                <div class="relative h-48"><canvas id="grafica-lat"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Tabla de Persistencia Visual (Historial) -->
         <div class="card p-6">
             <h2 class="text-lg font-bold text-[#6b4c52] mb-4">Persistencia SQLite</h2>
             <div class="overflow-x-auto">
@@ -121,15 +153,15 @@
                         <tr class="bg-[#fce4e8] text-[#6b4c52]">
                             <th class="p-3 rounded-l-lg">ID</th>
                             <th class="p-3">Nodo</th>
+                            <th class="p-3">Seq</th>
                             <th class="p-3">Distancia</th>
                             <th class="p-3">Temperatura</th>
                             <th class="p-3">Turbidez</th>
+                            <th class="p-3">Latencia</th>
                             <th class="p-3 rounded-r-lg">Marca de Tiempo</th>
                         </tr>
                     </thead>
-                    <tbody id="tabla-historial" class="divide-y divide-[#f7e6e9]">
-                        <!-- Los datos se cargarán aquí dinámicamente -->
-                    </tbody>
+                    <tbody id="tabla-historial" class="divide-y divide-[#f7e6e9]"></tbody>
                 </table>
             </div>
         </div>
@@ -138,24 +170,91 @@
 
     <script>
         const ALTO_VASO_CM = 10.0;
+        const $ = id => document.getElementById(id);
 
-        // Función para cargar el historial guardado en la Base de Datos
+        // ---------- Gráficas ----------
+        function crearGrafica(id, color, fondo) {
+            return new Chart($(id), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: fondo, fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
+                options: { animation: false, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 6 } } } }
+            });
+        }
+        const graficaDist = crearGrafica('grafica-dist', '#e87991', 'rgba(232,121,145,0.15)');
+        const graficaLat = crearGrafica('grafica-lat', '#a8567a', 'rgba(168,86,122,0.12)');
+
+        function agregarPunto(g, etiqueta, valor) {
+            g.data.labels.push(etiqueta);
+            g.data.datasets[0].data.push(valor);
+            if (g.data.labels.length > 50) { g.data.labels.shift(); g.data.datasets[0].data.shift(); }
+            g.update();
+        }
+
+        // ---------- Métricas ----------
+        let m;
+        function reiniciarMetricas() {
+            m = { min: null, max: null, rx: 0, last: null, suma: 0, n: 0, latMax: 0, llegadas: [] };
+            [graficaDist, graficaLat].forEach(g => { g.data.labels = []; g.data.datasets[0].data = []; g.update(); });
+            ['m-lat', 'm-lat-avg', 'm-lat-max', 'm-loss', 'm-seq', 'm-freq', 'm-heap'].forEach(i => $(i).innerText = '-');
+            $('m-rx').innerText = '0';
+        }
+
+        function actualizarMetricas(json) {
+            const seq = json.sequence_id, lat = json.latencia_ms;
+            const hora = new Date().toLocaleTimeString('es-MX');
+
+            // Frecuencia real: promedio de los últimos 20 intervalos entre mensajes
+            m.llegadas.push(Date.now());
+            if (m.llegadas.length > 21) m.llegadas.shift();
+            if (m.llegadas.length > 1) {
+                const ms = (m.llegadas[m.llegadas.length - 1] - m.llegadas[0]) / (m.llegadas.length - 1);
+                $('m-freq').innerText = Math.round(ms) + ' ms';
+            }
+            if (json.heap_free != null) $('m-heap').innerText = Math.round(json.heap_free / 1024) + ' KB';
+
+            if (json.data && json.data.distancia_cm != null) agregarPunto(graficaDist, hora, parseFloat(json.data.distancia_cm));
+
+            // Pérdida de paquetes a partir del sequence_id
+            if (seq != null) {
+                if (m.last !== null && seq < m.last) reiniciarMetricas();   // la ESP32 se reinició
+                m.last = seq;
+                m.min = m.min === null ? seq : Math.min(m.min, seq);
+                m.max = m.max === null ? seq : Math.max(m.max, seq);
+                m.rx++;
+                const perdida = (1 - m.rx / (m.max - m.min + 1)) * 100;
+                $('m-seq').innerText = seq;
+                $('m-rx').innerText = m.rx;
+                $('m-loss').innerText = perdida.toFixed(1) + ' %';
+            }
+
+            if (lat != null) {
+                m.suma += lat; m.n++; m.latMax = Math.max(m.latMax, lat);
+                $('m-lat').innerText = lat.toFixed(0) + ' ms';
+                $('m-lat-avg').innerText = (m.suma / m.n).toFixed(0) + ' ms';
+                $('m-lat-max').innerText = m.latMax.toFixed(0) + ' ms';
+                agregarPunto(graficaLat, hora, lat);
+            }
+        }
+        reiniciarMetricas();
+
+        // ---------- Historial guardado en la base de datos ----------
+        let ultimaTabla = 0;
         async function cargarHistorial() {
             try {
                 const response = await fetch('http://localhost:8000/api/historial');
                 const historial = await response.json();
-                
-                const tbody = document.getElementById('tabla-historial');
-                tbody.innerHTML = ''; // Limpiar tabla
-
+                const tbody = $('tabla-historial');
+                tbody.innerHTML = '';
                 historial.forEach(row => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="p-3 font-semibold text-[#5c4046]">${row.id}</td>
                         <td class="p-3">${row.node_id}</td>
-                        <td class="p-3">${row.distancia_cm} cm</td>
-                        <td class="p-3">${row.temperatura} °C</td>
-                        <td class="p-3">${row.turbidez}</td>
+                        <td class="p-3">${row.sequence_id ?? '-'}</td>
+                        <td class="p-3">${row.distancia_cm ?? '-'} cm</td>
+                        <td class="p-3">${row.temperatura ?? '-'} °C</td>
+                        <td class="p-3">${row.turbidez ?? '-'}</td>
+                        <td class="p-3">${row.latencia != null ? row.latencia.toFixed(0) + ' ms' : '-'}</td>
                         <td class="p-3 text-xs text-[#a07880]">${row.timestamp}</td>
                     `;
                     tbody.appendChild(tr);
@@ -164,14 +263,20 @@
                 console.error("Error cargando historial:", e);
             }
         }
+        // La tabla se refresca como máximo cada 2 segundos aunque lleguen datos más rápido
+        function refrescarHistorial() {
+            const t = Date.now();
+            if (t - ultimaTabla > 2000) { ultimaTabla = t; cargarHistorial(); }
+        }
 
+        // ---------- WebSocket ----------
         function conectarWebSocket() {
-        const ws = new WebSocket('ws://localhost:8000/ws');
+            const ws = new WebSocket('ws://localhost:8000/ws');
             ws.onopen = () => {
-                const badge = document.getElementById('status-badge');
+                const badge = $('status-badge');
                 badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Conectado`;
-                cargarHistorial(); // Cargar historial al conectar
+                cargarHistorial();
             };
 
             ws.onmessage = (event) => {
@@ -179,16 +284,15 @@
                     const json = JSON.parse(event.data);
                     const data = json.data ? json.data : json;
                     actualizarUI(data);
-                    
-                    // Cada vez que llega un dato nuevo en vivo, refrescamos la tabla de persistencia
-                    cargarHistorial();
+                    actualizarMetricas(json);
+                    refrescarHistorial();
                 } catch (e) {
                     console.error("Error parseando JSON:", e);
                 }
             };
 
             ws.onclose = () => {
-                const badge = document.getElementById('status-badge');
+                const badge = $('status-badge');
                 badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700 flex items-center gap-1.5";
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Desconectado`;
                 setTimeout(conectarWebSocket, 3000);
@@ -198,26 +302,26 @@
         function actualizarUI(data) {
             if (data.distancia_cm !== undefined) {
                 const dist = parseFloat(data.distancia_cm);
-                document.getElementById('txt-distancia').innerText = dist.toFixed(1);
+                $('txt-distancia').innerText = dist.toFixed(1);
                 let pct = dist < ALTO_VASO_CM ? ((ALTO_VASO_CM - dist) / ALTO_VASO_CM) * 100 : 0;
                 pct = Math.max(0, Math.min(100, Math.round(pct)));
-                document.getElementById('txt-porcentaje').innerText = pct + "%";
-                document.getElementById('vaso-agua').style.height = pct + "%";
+                $('txt-porcentaje').innerText = pct + "%";
+                $('vaso-agua').style.height = pct + "%";
             }
 
             if (data.temperatura !== undefined) {
                 const temp = parseFloat(data.temperatura);
-                document.getElementById('txt-temperatura').innerText = temp.toFixed(1) + "°C";
+                $('txt-temperatura').innerText = temp.toFixed(1) + "°C";
                 const pctTemp = Math.max(0, Math.min(1, (temp - 10) / (50 - 10)));
-                document.getElementById('temp-gauge').style.strokeDashoffset = 251.2 - (251.2 * pctTemp);
+                $('temp-gauge').style.strokeDashoffset = 251.2 - (251.2 * pctTemp);
             }
 
             if (data.turbidez !== undefined) {
                 const rawTurb = parseFloat(data.turbidez);
                 const turbPct = rawTurb <= 10 ? 100 : Math.max(0, Math.min(100, ((53.8 - rawTurb) / 53.8) * 100));
-                document.getElementById('txt-turbidez-pct').innerText = Math.round(turbPct) + "%";
-                document.getElementById('txt-turbidez-val').innerText = rawTurb.toFixed(1) + " (val)";
-                document.getElementById('barra-turbidez').style.width = Math.round(turbPct) + "%";
+                $('txt-turbidez-pct').innerText = Math.round(turbPct) + "%";
+                $('txt-turbidez-val').innerText = rawTurb.toFixed(1) + " (val)";
+                $('barra-turbidez').style.width = Math.round(turbPct) + "%";
             }
         }
 
