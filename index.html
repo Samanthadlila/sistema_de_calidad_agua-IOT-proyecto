@@ -1,230 +1,1085 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoreo de Agua - Vaso 5" con Persistencia</title>
+
+    <title>Monitoreo Inteligente de Agua</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
         body {
             background-color: #faf0f2;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                'Segoe UI', Roboto, sans-serif;
             color: #4a3b3e;
         }
+
         .card {
             background: #ffffff;
             border: 1px solid #f2dadf;
             border-radius: 1.25rem;
             box-shadow: 0 4px 15px rgba(210, 160, 170, 0.08);
         }
-        .gauge-bg { stroke: #fce4e8; }
+
+        .gauge-bg {
+            stroke: #fce4e8;
+        }
+
         .gauge-value {
-            stroke: #e87991;
+            stroke: #059669;
             stroke-dasharray: 251.2;
             stroke-dashoffset: 251.2;
             transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease;
         }
-        .water-animation { transition: height 0.8s ease-in-out; }
+
+        .water-animation {
+            transition: height 0.8s ease-in-out;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            min-width: 700px;
+        }
     </style>
 </head>
+
 <body class="p-4 md:p-8 min-h-screen">
 
-    <div class="max-w-4xl mx-auto space-y-6">
-        
-        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-[#f2dadf] shadow-sm gap-4">
-            <div>
-                <h1 class="text-2xl font-bold text-[#6b4c52]">Monitoreo y Persistencia de Agua</h1>
-                <p class="text-sm text-[#a07880]">IoT Middleware - Base de Datos Activa</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <span id="status-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700 flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                    Conectando...
-                </span>
-                <span class="text-xs text-[#a07880] bg-[#fcf0f2] px-3 py-1 rounded-full border border-[#f2dadf]">
-                    ESP32_AGUA_01
-                </span>
-            </div>
-        </header>
+<div class="max-w-5xl mx-auto space-y-6">
 
-        <!-- Tarjetas de Sensores -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Nivel -->
-            <div class="card p-6 flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Nivel del Vaso</span>
-                        <span id="nivel-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Normal</span>
-                    </div>
-                    <div class="relative w-28 h-36 mx-auto my-2 border-4 border-t-0 border-[#dca8b2] rounded-b-2xl bg-[#fffafb] overflow-hidden flex items-end p-1">
-                        <div id="vaso-agua" class="w-full bg-gradient-to-t from-[#6bb8e6] to-[#a3d8f4] rounded-b-xl water-animation" style="height: 0%;"></div>
-                        <div class="absolute inset-0 flex items-center justify-center font-bold text-lg text-[#3a5868]">
-                            <span id="txt-porcentaje">0%</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 pt-4 border-t border-[#f7e6e9] text-center">
-                    <p class="text-xs text-[#a07880]">Distancia</p>
-                    <p class="text-xl font-bold text-[#5c4046]"><span id="txt-distancia">0.0</span> cm</p>
-                </div>
-            </div>
+    <!-- ====================================== -->
+    <!-- ENCABEZADO -->
+    <!-- ====================================== -->
 
-            <!-- Temperatura -->
-            <div class="card p-6 flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Temperatura</span>
-                        <span id="temp-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">Leyendo...</span>
-                    </div>
-                    <div class="relative w-40 h-40 mx-auto flex items-center justify-center">
-                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                            <circle class="gauge-bg" cx="50" cy="50" r="40" stroke-width="8" fill="transparent"></circle>
-                            <circle id="temp-gauge" class="gauge-value" cx="50" cy="50" r="40" stroke-width="8" fill="transparent"></circle>
-                        </svg>
-                        <div class="absolute flex flex-col items-center justify-center text-center">
-                            <span id="txt-temperatura" class="text-3xl font-bold text-[#5c4046]">--</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-2 pt-4 border-t border-[#f7e6e9] text-center">
-                    <p id="txt-temp-estado" class="text-xs font-semibold text-emerald-600">Correcto</p>
-                </div>
-            </div>
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-[#f2dadf] shadow-sm gap-4">
 
-            <!-- Turbidez -->
-            <div class="card p-6 flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">Turbidez</span>
-                        <span id="turbidez-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">Limpia</span>
-                    </div>
-                    <div class="my-6 text-center">
-                        <p id="txt-turbidez-pct" class="text-4xl font-bold text-[#5c4046]">0%</p>
-                        <p id="txt-turbidez-val" class="text-xs text-[#a07880] mt-1">0.0 (val)</p>
-                        <p id="txt-turbidez-desc" class="text-sm mt-2 text-[#8c656d]">Agua cristalina</p>
-                    </div>
-                </div>
-                <div>
-                    <div class="w-full bg-[#fce4e8] h-3 rounded-full overflow-hidden mb-2">
-                        <div id="barra-turbidez" class="h-full bg-[#e87991] transition-all duration-500" style="width: 0%;"></div>
-                    </div>
-                </div>
-            </div>
+        <div>
+            <h1 class="text-2xl font-bold text-[#6b4c52]">
+                Monitoreo Inteligente de Agua
+            </h1>
+
+            <p class="text-sm text-[#a07880] mt-1">
+                Sistema IoT con clasificación mediante Random Forest
+            </p>
         </div>
 
-        <!-- NUEVA SECCIÓN: Tabla de Persistencia Visual (Historial) -->
-        <div class="card p-6">
-            <h2 class="text-lg font-bold text-[#6b4c52] mb-4">Persistencia SQLite</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead>
-                        <tr class="bg-[#fce4e8] text-[#6b4c52]">
-                            <th class="p-3 rounded-l-lg">ID</th>
-                            <th class="p-3">Nodo</th>
-                            <th class="p-3">Distancia</th>
-                            <th class="p-3">Temperatura</th>
-                            <th class="p-3">Turbidez</th>
-                            <th class="p-3 rounded-r-lg">Marca de Tiempo</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-historial" class="divide-y divide-[#f7e6e9]">
-                        <!-- Los datos se cargarán aquí dinámicamente -->
-                    </tbody>
-                </table>
+        <div class="flex items-center gap-3 flex-wrap">
+
+            <span id="status-badge"
+                class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700 flex items-center gap-1.5">
+
+                <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                Conectando...
+            </span>
+
+            <span class="text-xs text-[#a07880] bg-[#fcf0f2] px-3 py-1 rounded-full border border-[#f2dadf]">
+                ESP32_AGUA_01
+            </span>
+
+        </div>
+    </header>
+
+
+    <!-- ====================================== -->
+    <!-- TARJETAS DE SENSORES -->
+    <!-- ====================================== -->
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- NIVEL DEL AGUA -->
+
+        <div class="card p-6 flex flex-col justify-between">
+
+            <div>
+
+                <div class="flex justify-between items-center mb-4">
+
+                    <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">
+                        Nivel del tanque
+                    </span>
+
+                    <span id="nivel-badge"
+                        class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                        Esperando
+                    </span>
+
+                </div>
+
+                <div class="relative w-28 h-36 mx-auto my-2 border-4 border-t-0 border-[#dca8b2] rounded-b-2xl bg-[#fffafb] overflow-hidden flex items-end p-1">
+
+                    <div id="vaso-agua"
+                        class="w-full bg-gradient-to-t from-[#6bb8e6] to-[#a3d8f4] rounded-b-xl water-animation"
+                        style="height: 0%;">
+                    </div>
+
+                    <div class="absolute inset-0 flex items-center justify-center font-bold text-lg text-[#3a5868]">
+                        <span id="txt-porcentaje">0%</span>
+                    </div>
+
+                </div>
+
             </div>
+
+            <div class="mt-4 pt-4 border-t border-[#f7e6e9] text-center">
+
+                <p class="text-xs text-[#a07880]">
+                    Distancia
+                </p>
+
+                <p class="text-xl font-bold text-[#5c4046]">
+                    <span id="txt-distancia">0.0</span> cm
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- TEMPERATURA -->
+
+        <div class="card p-6 flex flex-col justify-between">
+
+            <div>
+
+                <div class="flex justify-between items-center mb-2">
+
+                    <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">
+                        Temperatura
+                    </span>
+
+                    <span id="temp-badge"
+                        class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                        Leyendo...
+                    </span>
+
+                </div>
+
+                <div class="relative w-40 h-40 mx-auto flex items-center justify-center">
+
+                    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+
+                        <circle class="gauge-bg"
+                            cx="50" cy="50" r="40"
+                            stroke-width="8"
+                            fill="transparent">
+                        </circle>
+
+                        <circle id="temp-gauge"
+                            class="gauge-value"
+                            cx="50" cy="50" r="40"
+                            stroke-width="8"
+                            fill="transparent">
+                        </circle>
+
+                    </svg>
+
+                    <div class="absolute flex flex-col items-center justify-center text-center">
+
+                        <span id="txt-temperatura"
+                            class="text-3xl font-bold text-[#5c4046]">
+                            --
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="mt-2 pt-4 border-t border-[#f7e6e9] text-center">
+
+                <p id="txt-temp-estado"
+                    class="text-xs font-semibold text-[#a07880]">
+                    Esperando lectura
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- TURBIDEZ -->
+
+        <div class="card p-6 flex flex-col justify-between">
+
+            <div>
+
+                <div class="flex justify-between items-center mb-4">
+
+                    <span class="text-sm font-semibold text-[#8c656d] uppercase tracking-wider">
+                        Turbidez
+                    </span>
+
+                    <span id="turbidez-badge"
+                        class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                        Leyendo...
+                    </span>
+
+                </div>
+
+                <div class="my-6 text-center">
+
+                    <p id="txt-turbidez-pct"
+                        class="text-4xl font-bold text-[#5c4046]">
+                        --
+                    </p>
+
+                    <p id="txt-turbidez-val"
+                        class="text-xs text-[#a07880] mt-1">
+                        Sin lectura
+                    </p>
+
+                    <p id="txt-turbidez-desc"
+                        class="text-sm mt-2 text-[#8c656d]">
+                        Esperando datos del sensor
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div>
+
+                <div class="w-full bg-[#fce4e8] h-3 rounded-full overflow-hidden mb-2">
+
+                    <div id="barra-turbidez"
+                        class="h-full bg-emerald-500 transition-all duration-500"
+                        style="width: 0%;">
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
 
     </div>
 
-    <script>
-        const ALTO_VASO_CM = 10.0;
 
-        // Función para cargar el historial guardado en la Base de Datos
-        async function cargarHistorial() {
-            try {
-                const response = await fetch('http://localhost:8000/api/historial');
-                const historial = await response.json();
-                
-                const tbody = document.getElementById('tabla-historial');
-                tbody.innerHTML = ''; // Limpiar tabla
+    <!-- ====================================== -->
+    <!-- CLASIFICACIÓN RANDOM FOREST -->
+    <!-- ====================================== -->
 
-                historial.forEach(row => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="p-3 font-semibold text-[#5c4046]">${row.id}</td>
-                        <td class="p-3">${row.node_id}</td>
-                        <td class="p-3">${row.distancia_cm} cm</td>
-                        <td class="p-3">${row.temperatura} °C</td>
-                        <td class="p-3">${row.turbidez}</td>
-                        <td class="p-3 text-xs text-[#a07880]">${row.timestamp}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (e) {
-                console.error("Error cargando historial:", e);
-            }
+    <div class="card p-6">
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+
+            <div>
+                <h2 class="text-lg font-bold text-[#6b4c52]">
+                    Clasificación inteligente
+                </h2>
+
+                <p class="text-sm text-[#a07880] mt-1">
+                    Análisis del estado del tanque mediante Random Forest
+                </p>
+            </div>
+
+            <span id="rf-badge"
+                class="px-5 py-2 rounded-full text-sm font-bold bg-gray-100 text-gray-600">
+                Esperando lecturas...
+            </span>
+
+        </div>
+
+
+        <!-- ESTADO GENERAL -->
+
+        <div class="mt-5 rounded-2xl border border-[#f2dadf] bg-[#fffafb] p-5">
+
+            <p class="text-xs font-semibold tracking-wider text-[#a07880] uppercase">
+                Estado general del tanque
+            </p>
+
+            <div class="flex items-center gap-3 mt-3">
+
+                <div id="rf-icon"
+                    class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+
+                    <span class="text-2xl">◉</span>
+
+                </div>
+
+                <div>
+
+                    <h3 id="rf-estado-grande"
+                        class="text-2xl font-bold text-[#6b4c52]">
+                        Sin datos
+                    </h3>
+
+                    <p id="rf-mensaje"
+                        class="text-sm text-[#8c656d] mt-1">
+                        Esperando información de los sensores...
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- VARIABLES ANALIZADAS -->
+
+        <div class="mt-5">
+
+            <p class="text-xs font-semibold tracking-wider text-[#a07880] uppercase mb-3">
+                Variables analizadas
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+                <!-- NIVEL -->
+
+                <div class="rounded-xl border border-[#f2dadf] p-4 bg-white">
+
+                    <div class="flex justify-between items-center">
+
+                        <span class="text-xs text-[#a07880]">
+                            Nivel del tanque
+                        </span>
+
+                        <span>💧</span>
+
+                    </div>
+
+                    <p id="rf-nivel"
+                        class="text-2xl font-bold text-[#6b4c52] mt-2">
+                        -- %
+                    </p>
+
+                </div>
+
+
+                <!-- TEMPERATURA -->
+
+                <div class="rounded-xl border border-[#f2dadf] p-4 bg-white">
+
+                    <div class="flex justify-between items-center">
+
+                        <span class="text-xs text-[#a07880]">
+                            Temperatura
+                        </span>
+
+                        <span>🌡️</span>
+
+                    </div>
+
+                    <p id="rf-temperatura"
+                        class="text-2xl font-bold text-[#6b4c52] mt-2">
+                        -- °C
+                    </p>
+
+                </div>
+
+
+                <!-- TURBIDEZ -->
+
+                <div class="rounded-xl border border-[#f2dadf] p-4 bg-white">
+
+                    <div class="flex justify-between items-center">
+
+                        <span class="text-xs text-[#a07880]">
+                            Turbidez
+                        </span>
+
+                        <span>〰️</span>
+
+                    </div>
+
+                    <p id="rf-turbidez"
+                        class="text-2xl font-bold text-[#6b4c52] mt-2">
+                        --
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ====================================== -->
+    <!-- HISTORIAL SQLITE -->
+    <!-- ====================================== -->
+
+    <div class="card p-6">
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-5">
+
+            <div>
+                <h2 class="text-lg font-bold text-[#6b4c52]">
+                    Historial de lecturas
+                </h2>
+
+                <p class="text-sm text-[#a07880] mt-1">
+                    Registros almacenados en la base de datos SQLite
+                </p>
+            </div>
+
+            <button
+                onclick="cargarHistorial()"
+                class="px-4 py-2 rounded-lg text-sm font-semibold bg-[#fcf0f2] text-[#8c656d] border border-[#f2dadf] hover:bg-[#f8e5e9] transition">
+                Actualizar historial
+            </button>
+
+        </div>
+
+        <div class="table-container">
+
+            <table class="w-full text-sm text-left">
+
+                <thead class="bg-[#fffafb] text-[#8c656d] uppercase text-xs">
+
+                    <tr>
+                        <th class="p-3">ID</th>
+                        <th class="p-3">Dispositivo</th>
+                        <th class="p-3">Nivel</th>
+                        <th class="p-3">Temperatura</th>
+                        <th class="p-3">Turbidez</th>
+                        <th class="p-3">Clasificación</th>
+                        <th class="p-3">Fecha</th>
+                    </tr>
+
+                </thead>
+
+                <tbody id="tabla-historial" class="divide-y divide-[#f7e6e9]">
+
+                    <tr>
+                        <td colspan="7" class="p-4 text-center text-[#a07880]">
+                            Cargando historial...
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ====================================== -->
+<!-- JAVASCRIPT -->
+<!-- ====================================== -->
+
+<script>
+
+// ==========================================
+// CONFIGURACIÓN
+// ==========================================
+
+const API_URL = "http://localhost:8000";
+const WS_URL = "ws://localhost:8000/ws";
+
+let ws = null;
+let reconexionProgramada = false;
+
+
+// ==========================================
+// FUNCIONES AUXILIARES
+// ==========================================
+
+function cambiarBadge(elemento, texto, tipo) {
+
+    const estilos = {
+        normal: "bg-emerald-50 text-emerald-600 border border-emerald-200",
+        precaucion: "bg-amber-50 text-amber-600 border border-amber-200",
+        critica: "bg-rose-50 text-rose-600 border border-rose-200",
+        error: "bg-gray-100 text-gray-600 border border-gray-200"
+    };
+
+    elemento.innerText = texto;
+
+    elemento.className =
+        "text-xs font-medium px-2.5 py-0.5 rounded-full " +
+        (estilos[tipo] || estilos.error);
+}
+
+
+function obtenerColorClasificacion(estado) {
+
+    if (estado === "Optima") {
+        return "bg-emerald-100 text-emerald-700";
+    }
+
+    if (estado === "Precaucion") {
+        return "bg-amber-100 text-amber-700";
+    }
+
+    if (estado === "Critica") {
+        return "bg-rose-100 text-rose-700";
+    }
+
+    return "bg-gray-100 text-gray-600";
+}
+
+
+// ==========================================
+// CARGAR HISTORIAL SQLITE
+// ==========================================
+
+async function cargarHistorial() {
+
+    const tbody = document.getElementById("tabla-historial");
+
+    try {
+
+        const response = await fetch(`${API_URL}/api/historial`);
+
+        if (!response.ok) {
+            throw new Error("No se pudo consultar el historial");
         }
 
-        function conectarWebSocket() {
-        const ws = new WebSocket('ws://localhost:8000/ws');
-            ws.onopen = () => {
-                const badge = document.getElementById('status-badge');
-                badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5";
-                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Conectado`;
-                cargarHistorial(); // Cargar historial al conectar
-            };
+        const historial = await response.json();
 
-            ws.onmessage = (event) => {
-                try {
-                    const json = JSON.parse(event.data);
-                    const data = json.data ? json.data : json;
-                    actualizarUI(data);
-                    
-                    // Cada vez que llega un dato nuevo en vivo, refrescamos la tabla de persistencia
-                    cargarHistorial();
-                } catch (e) {
-                    console.error("Error parseando JSON:", e);
+        tbody.innerHTML = "";
+
+        if (!Array.isArray(historial) || historial.length === 0) {
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="p-4 text-center text-[#a07880]">
+                        No hay registros disponibles.
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        historial.forEach(row => {
+
+            const tr = document.createElement("tr");
+
+            tr.className = "hover:bg-[#fffafb] transition";
+
+            const estado = row.clasificacion || "Sin clasificar";
+
+            const color = obtenerColorClasificacion(estado);
+
+            const nivel = Number(row.nivel_pct);
+            const temperatura = Number(row.temperatura);
+            const turbidez = Number(row.turbidez);
+
+            const celdas = [
+                row.id ?? "--",
+                row.node_id ?? "--",
+                Number.isFinite(nivel) ? `${nivel.toFixed(1)} %` : "--",
+                Number.isFinite(temperatura) ? `${temperatura.toFixed(1)} °C` : "--",
+                Number.isFinite(turbidez) ? turbidez.toFixed(2) : "--",
+                estado,
+                row.timestamp ?? "--"
+            ];
+
+            celdas.forEach((valor, index) => {
+
+                const td = document.createElement("td");
+
+                td.className = "p-3 text-[#6b4c52]";
+
+                if (index === 5) {
+
+                    const span = document.createElement("span");
+
+                    span.className =
+                        `px-2 py-1 rounded-full text-xs font-semibold ${color}`;
+
+                    span.textContent = valor;
+
+                    td.appendChild(span);
+
+                } else {
+
+                    td.textContent = valor;
+
                 }
-            };
 
-            ws.onclose = () => {
-                const badge = document.getElementById('status-badge');
-                badge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700 flex items-center gap-1.5";
-                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Desconectado`;
-                setTimeout(conectarWebSocket, 3000);
-            };
-        }
+                tr.appendChild(td);
 
-        function actualizarUI(data) {
-            if (data.distancia_cm !== undefined) {
-                const dist = parseFloat(data.distancia_cm);
-                document.getElementById('txt-distancia').innerText = dist.toFixed(1);
-                let pct = dist < ALTO_VASO_CM ? ((ALTO_VASO_CM - dist) / ALTO_VASO_CM) * 100 : 0;
-                pct = Math.max(0, Math.min(100, Math.round(pct)));
-                document.getElementById('txt-porcentaje').innerText = pct + "%";
-                document.getElementById('vaso-agua').style.height = pct + "%";
-            }
+            });
 
-            if (data.temperatura !== undefined) {
-                const temp = parseFloat(data.temperatura);
-                document.getElementById('txt-temperatura').innerText = temp.toFixed(1) + "°C";
-                const pctTemp = Math.max(0, Math.min(1, (temp - 10) / (50 - 10)));
-                document.getElementById('temp-gauge').style.strokeDashoffset = 251.2 - (251.2 * pctTemp);
-            }
+            tbody.appendChild(tr);
 
-            if (data.turbidez !== undefined) {
-                const rawTurb = parseFloat(data.turbidez);
-                const turbPct = rawTurb <= 10 ? 100 : Math.max(0, Math.min(100, ((53.8 - rawTurb) / 53.8) * 100));
-                document.getElementById('txt-turbidez-pct').innerText = Math.round(turbPct) + "%";
-                document.getElementById('txt-turbidez-val').innerText = rawTurb.toFixed(1) + " (val)";
-                document.getElementById('barra-turbidez').style.width = Math.round(turbPct) + "%";
-            }
-        }
+        });
 
-        window.onload = () => {
-            conectarWebSocket();
+    } catch (error) {
+
+        console.error("Error cargando historial:", error);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="p-4 text-center text-rose-600">
+                    No se pudo cargar el historial. Verifica que FastAPI esté ejecutándose.
+                </td>
+            </tr>
+        `;
+
+    }
+
+}
+
+
+// ==========================================
+// ACTUALIZAR ESTADO DE CONEXIÓN
+// ==========================================
+
+function actualizarEstadoConexion(conectado) {
+
+    const badge = document.getElementById("status-badge");
+
+    if (conectado) {
+
+        badge.className =
+            "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5";
+
+        badge.innerHTML = `
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Conectado
+        `;
+
+    } else {
+
+        badge.className =
+            "px-3 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700 flex items-center gap-1.5";
+
+        badge.innerHTML = `
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            Desconectado
+        `;
+
+    }
+
+}
+
+
+// ==========================================
+// CONEXIÓN WEBSOCKET
+// ==========================================
+
+function conectarWebSocket() {
+
+    if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+         ws.readyState === WebSocket.CONNECTING)
+    ) {
+        return;
+    }
+
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+
+        actualizarEstadoConexion(true);
+
+        reconexionProgramada = false;
+
+        cargarHistorial();
+
+    };
+
+
+    ws.onmessage = (event) => {
+
+        try {
+
+            const json = JSON.parse(event.data);
+
+            // Admite clasificación dentro o fuera del objeto data.
+            const data = json.data
+                ? {
+                    ...json.data,
+                    clasificacion:
+                        json.data.clasificacion ?? json.clasificacion
+                }
+                : json;
+
+            actualizarUI(data);
+
             cargarHistorial();
-        };
-    </script>
+
+        } catch (error) {
+
+            console.error("Error procesando mensaje:", error);
+
+        }
+
+    };
+
+
+    ws.onerror = (error) => {
+
+        console.error("Error WebSocket:", error);
+
+    };
+
+
+    ws.onclose = () => {
+
+        actualizarEstadoConexion(false);
+
+        if (!reconexionProgramada) {
+
+            reconexionProgramada = true;
+
+            setTimeout(() => {
+
+                reconexionProgramada = false;
+
+                conectarWebSocket();
+
+            }, 3000);
+
+        }
+
+    };
+
+}
+
+
+// ==========================================
+// ACTUALIZAR INTERFAZ
+// ==========================================
+
+function actualizarUI(data) {
+
+
+    // --------------------------------------
+    // NIVEL DEL TANQUE
+    // --------------------------------------
+
+    if (data.nivel_pct !== undefined) {
+
+        const nivel = Number(data.nivel_pct);
+
+        if (Number.isFinite(nivel)) {
+
+            const pct = Math.max(0, Math.min(100, nivel));
+
+            document.getElementById("txt-porcentaje").innerText =
+                pct.toFixed(1) + "%";
+
+            document.getElementById("vaso-agua").style.height =
+                pct + "%";
+
+            document.getElementById("rf-nivel").innerText =
+                pct.toFixed(1) + " %";
+
+            const badge = document.getElementById("nivel-badge");
+
+            if (nivel < 20 || nivel > 90) {
+
+                cambiarBadge(badge, "Crítico", "critica");
+
+            } else if (nivel < 30 || nivel > 80) {
+
+                cambiarBadge(badge, "Precaución", "precaucion");
+
+            } else {
+
+                cambiarBadge(badge, "Normal", "normal");
+
+            }
+
+        }
+
+    }
+
+
+    // --------------------------------------
+    // DISTANCIA
+    // --------------------------------------
+
+    if (data.distancia_cm !== undefined) {
+
+        const distancia = Number(data.distancia_cm);
+
+        if (Number.isFinite(distancia)) {
+
+            document.getElementById("txt-distancia").innerText =
+                distancia.toFixed(1);
+
+        }
+
+    }
+
+
+    // --------------------------------------
+    // TEMPERATURA
+    // --------------------------------------
+
+    if (data.temperatura !== undefined) {
+
+        const temp = Number(data.temperatura);
+
+        if (Number.isFinite(temp)) {
+
+            document.getElementById("rf-temperatura").innerText =
+                temp === -127 ? "Error" : temp.toFixed(1) + " °C";
+
+            const badge = document.getElementById("temp-badge");
+            const estado = document.getElementById("txt-temp-estado");
+            const gauge = document.getElementById("temp-gauge");
+            const textoTemp = document.getElementById("txt-temperatura");
+
+            if (temp === -127) {
+
+                textoTemp.innerText = "--";
+
+                badge.innerText = "Error sensor";
+                estado.innerText = "Lectura inválida";
+
+                badge.className =
+                    "text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200";
+
+                gauge.style.stroke = "#9ca3af";
+                gauge.style.strokeDashoffset = 251.2;
+
+            } else {
+
+                textoTemp.innerText = temp.toFixed(1) + "°C";
+
+                const pctTemp = Math.max(
+                    0,
+                    Math.min(1, (temp - 10) / 40)
+                );
+
+                gauge.style.strokeDashoffset =
+                    251.2 - (251.2 * pctTemp);
+
+                if (temp < 18 || temp > 28) {
+
+                    badge.innerText = "Crítica";
+                    estado.innerText = "Temperatura fuera de rango";
+
+                    badge.className =
+                        "text-xs font-medium px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200";
+
+                    gauge.style.stroke = "#e11d48";
+
+                } else if (temp < 20 || temp > 25) {
+
+                    badge.innerText = "Precaución";
+                    estado.innerText = "Temperatura próxima al límite";
+
+                    badge.className =
+                        "text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200";
+
+                    gauge.style.stroke = "#d97706";
+
+                } else {
+
+                    badge.innerText = "Normal";
+                    estado.innerText = "Temperatura dentro del rango";
+
+                    badge.className =
+                        "text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200";
+
+                    gauge.style.stroke = "#059669";
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    // --------------------------------------
+    // TURBIDEZ
+    // --------------------------------------
+
+    if (data.turbidez !== undefined) {
+
+        const turbidez = Number(data.turbidez);
+
+        if (Number.isFinite(turbidez)) {
+
+            document.getElementById("txt-turbidez-val").innerText =
+                turbidez.toFixed(2) + " (lectura)";
+
+            document.getElementById("rf-turbidez").innerText =
+                turbidez.toFixed(2);
+
+            const barra = Math.max(
+                0,
+                Math.min(100, turbidez)
+            );
+
+            document.getElementById("txt-turbidez-pct").innerText =
+                turbidez.toFixed(1);
+
+            document.getElementById("barra-turbidez").style.width =
+                barra + "%";
+
+            const badge = document.getElementById("turbidez-badge");
+            const descripcion = document.getElementById("txt-turbidez-desc");
+            const barraElemento = document.getElementById("barra-turbidez");
+
+            if (turbidez > 60) {
+
+                cambiarBadge(badge, "Crítica", "critica");
+
+                descripcion.innerText =
+                    "Lectura superior al límite establecido";
+
+                barraElemento.style.backgroundColor = "#e11d48";
+
+            } else if (turbidez > 45) {
+
+                cambiarBadge(badge, "Precaución", "precaucion");
+
+                descripcion.innerText =
+                    "Lectura en rango de precaución";
+
+                barraElemento.style.backgroundColor = "#d97706";
+
+            } else {
+
+                cambiarBadge(badge, "Normal", "normal");
+
+                descripcion.innerText =
+                    "Lectura dentro del rango operativo óptimo";
+
+                barraElemento.style.backgroundColor = "#059669";
+
+            }
+
+        }
+
+    }
+
+
+    // --------------------------------------
+    // CLASIFICACIÓN RANDOM FOREST
+    // --------------------------------------
+
+    if (data.clasificacion !== undefined) {
+
+        const estado = data.clasificacion;
+
+        const badge = document.getElementById("rf-badge");
+        const mensaje = document.getElementById("rf-mensaje");
+        const estadoGrande = document.getElementById("rf-estado-grande");
+        const icono = document.getElementById("rf-icon");
+
+
+        if (estado === "Optima") {
+
+            badge.className =
+                "px-5 py-2 rounded-full text-sm font-bold bg-emerald-100 text-emerald-700";
+
+            badge.innerText = "Óptimo";
+
+            estadoGrande.innerText = "Estado óptimo";
+
+            estadoGrande.className =
+                "text-2xl font-bold text-emerald-700";
+
+            icono.className =
+                "w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center";
+
+            icono.innerHTML =
+                '<span class="text-2xl">✓</span>';
+
+            mensaje.innerText =
+                "Las variables analizadas se encuentran dentro de los rangos operativos establecidos.";
+
+        } else if (estado === "Precaucion") {
+
+            badge.className =
+                "px-5 py-2 rounded-full text-sm font-bold bg-amber-100 text-amber-700";
+
+            badge.innerText = "Precaución";
+
+            estadoGrande.innerText = "Requiere atención";
+
+            estadoGrande.className =
+                "text-2xl font-bold text-amber-700";
+
+            icono.className =
+                "w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center";
+
+            icono.innerHTML =
+                '<span class="text-2xl">!</span>';
+
+            mensaje.innerText =
+                "Una o más variables se encuentran próximas a sus límites operativos.";
+
+        } else if (estado === "Critica") {
+
+            badge.className =
+                "px-5 py-2 rounded-full text-sm font-bold bg-rose-100 text-rose-700";
+
+            badge.innerText = "Crítico";
+
+            estadoGrande.innerText = "Estado crítico";
+
+            estadoGrande.className =
+                "text-2xl font-bold text-rose-700";
+
+            icono.className =
+                "w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center";
+
+            icono.innerHTML =
+                '<span class="text-2xl">!</span>';
+
+            mensaje.innerText =
+                "Una o más variables están fuera de los rangos operativos establecidos.";
+
+        } else {
+
+            badge.className =
+                "px-5 py-2 rounded-full text-sm font-bold bg-gray-100 text-gray-600";
+
+            badge.innerText = "Sin clasificar";
+
+            estadoGrande.innerText = "Sin datos";
+
+            estadoGrande.className =
+                "text-2xl font-bold text-gray-600";
+
+            icono.className =
+                "w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center";
+
+            icono.innerHTML =
+                '<span class="text-2xl">◉</span>';
+
+            mensaje.innerText =
+                "No fue posible generar una clasificación válida.";
+
+        }
+
+    }
+
+}
+
+
+// ==========================================
+// INICIALIZAR DASHBOARD
+// ==========================================
+
+window.addEventListener("load", () => {
+
+    conectarWebSocket();
+
+    cargarHistorial();
+
+});
+
+</script>
+
 </body>
 </html>

@@ -5,11 +5,11 @@
 #include <DallasTemperature.h>
 
 // WIFI
-const char* ssid = "IZZI-6980";
-const char* password = "MMZMV2MAJMFG";
+const char* ssid = "Compu8";
+const char* password = "123456789";
 
 // IP del ESP32 MQTT
-const char* mqtt_server = "192.168.0.234"; 
+const char* mqtt_server = "192.168.137.149"; 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
